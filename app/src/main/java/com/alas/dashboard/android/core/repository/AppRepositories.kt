@@ -21,6 +21,8 @@ import com.alas.dashboard.android.core.model.RuleKind
 import com.alas.dashboard.android.core.model.ThresholdDirection
 import com.alas.dashboard.android.core.model.WidgetConfig
 import com.alas.dashboard.android.core.model.WidgetConfigJson
+import com.alas.dashboard.android.core.model.sortedByResourceDisplayOrder
+import com.alas.dashboard.android.core.model.sortedResourceNames
 import com.alas.dashboard.android.core.model.toDomain
 import com.alas.dashboard.android.core.network.ApiFactory
 import javax.inject.Inject
@@ -49,7 +51,7 @@ class DashboardRepository @Inject constructor(
     val hasAdminToken: Flow<Boolean> = accountConfig.map { it.adminToken.isNotBlank() }
 
     fun observeLatestResources(): Flow<List<ResourceSnapshot>> =
-        dao.observeLatest().map { items -> items.map { it.toDomain() } }
+        dao.observeLatest().map { items -> items.map { it.toDomain() }.sortedByResourceDisplayOrder() }
 
     fun observeHistory(resourceName: String): Flow<List<ResourceSnapshot>> =
         dao.observeHistory(resourceName).map { items -> items.map { it.toDomain() } }
@@ -202,7 +204,7 @@ class DashboardRepository @Inject constructor(
             "请先配置 Base URL 和用户 Token"
         }
         val api = apiFactory.create(account.baseUrl)
-        val latest = api.latest(auth(account.userToken)).resources.map { it.toDomain() }
+        val latest = api.latest(auth(account.userToken)).resources.map { it.toDomain() }.sortedByResourceDisplayOrder()
         dao.upsertLatest(latest.map { it.toLatestEntity() })
         return latest
     }
@@ -320,13 +322,13 @@ class DashboardRepository @Inject constructor(
     }
 
     suspend fun availableResourceNames(): List<String> =
-        dao.getLatestNow().map { it.resourceName }.sorted()
+        dao.getLatestNow().map { it.resourceName }.sortedResourceNames()
 
     suspend fun currentWidgetConfig(appWidgetId: Int): WidgetConfig =
         settingsStore.widgetConfigsSnapshot().firstOrNull { it.appWidgetId == appWidgetId }
             ?: WidgetConfig(appWidgetId = appWidgetId)
 
-    suspend fun latestNow(): List<ResourceSnapshot> = dao.getLatestNow().map { it.toDomain() }
+    suspend fun latestNow(): List<ResourceSnapshot> = dao.getLatestNow().map { it.toDomain() }.sortedByResourceDisplayOrder()
 
     private fun auth(token: String) = "Bearer ${token.trim()}"
 }

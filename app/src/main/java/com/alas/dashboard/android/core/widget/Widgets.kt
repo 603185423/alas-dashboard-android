@@ -56,6 +56,8 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.alas.dashboard.android.core.repository.DashboardRepository
 import com.alas.dashboard.android.core.work.triggerImmediateDashboardSync
+import com.alas.dashboard.android.core.model.displayResourceName
+import com.alas.dashboard.android.core.model.sortedResourceNames
 import com.alas.dashboard.android.ui.theme.DashboardTheme
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.AndroidEntryPoint
@@ -124,7 +126,7 @@ private open class BaseResourceWidget(
         }
         val selectedItems = latest
             .filter { it.resourceName in config.selectedResources }
-            .sortedBy { config.selectedResources.indexOf(it.resourceName) }
+            .sortedBy { com.alas.dashboard.android.core.model.resourceDisplayOrder(it.resourceName) }
         val items = if (config.selectedResources.isEmpty()) {
             latest
         } else if (selectedItems.isNotEmpty()) {
@@ -197,7 +199,7 @@ class WidgetConfigureActivity : ComponentActivity() {
             val scope = rememberCoroutineScope()
 
             LaunchedEffect(widgetId) {
-                allResources = repository.availableResourceNames()
+                allResources = repository.availableResourceNames().sortedResourceNames()
                 val config = repository.currentWidgetConfig(widgetId)
                 selected.clear()
                 selected.addAll(config.selectedResources)
@@ -233,7 +235,7 @@ class WidgetConfigureActivity : ComponentActivity() {
                                         .padding(16.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                 ) {
-                                    Text(name)
+                                    Text(name.displayResourceName())
                                     Checkbox(
                                         checked = selected.contains(name),
                                         onCheckedChange = {
@@ -379,7 +381,7 @@ private fun ResourceWidgetContent(
             visibleItems.forEach { item ->
                 GlanceText(
                     text = buildString {
-                        append(item.resourceName)
+                        append(item.resourceName.displayResourceName())
                         append(": ")
                         append(item.value)
                         when {

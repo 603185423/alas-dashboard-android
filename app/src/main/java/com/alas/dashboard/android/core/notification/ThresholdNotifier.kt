@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.alas.dashboard.android.core.model.displayResourceName
 import com.alas.dashboard.android.core.datastore.SettingsStore
 import com.alas.dashboard.android.core.model.NotificationRule
 import com.alas.dashboard.android.core.model.ResourceSnapshot
@@ -92,20 +93,22 @@ class ThresholdNotifier @Inject constructor(
     }
 
     private fun notifyOnce(rule: NotificationRule, resource: ResourceSnapshot) {
+        val resourceLabel = resource.resourceName.displayResourceName()
         val notification = NotificationCompat.Builder(context, CHANNEL_ONCE)
             .setSmallIcon(android.R.drawable.stat_notify_more)
             .setContentTitle("资源阈值提醒")
-            .setContentText("${resource.resourceName} 已${rule.directionText()} ${rule.threshold}，当前 ${resource.value}")
+            .setContentText("$resourceLabel 已${rule.directionText()} ${rule.threshold}，当前 ${resource.value}")
             .setAutoCancel(true)
             .build()
         notify(rule.id.hashCode(), notification)
     }
 
     private fun notifyPersistent(rule: NotificationRule, resource: ResourceSnapshot) {
+        val resourceLabel = resource.resourceName.displayResourceName()
         val notification = NotificationCompat.Builder(context, CHANNEL_PERSISTENT)
             .setSmallIcon(android.R.drawable.stat_notify_more)
             .setContentTitle("持续阈值提醒")
-            .setContentText("${resource.resourceName} 持续${rule.directionText()} ${rule.threshold}，当前 ${resource.value}")
+            .setContentText("$resourceLabel 持续${rule.directionText()} ${rule.threshold}，当前 ${resource.value}")
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()

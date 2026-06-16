@@ -62,6 +62,7 @@ import com.alas.dashboard.android.core.model.NotificationRule
 import com.alas.dashboard.android.core.model.ResourceSnapshot
 import com.alas.dashboard.android.core.model.RuleKind
 import com.alas.dashboard.android.core.model.ThresholdDirection
+import com.alas.dashboard.android.core.model.displayResourceName
 import com.alas.dashboard.android.navigation.DashboardUiState
 import com.alas.dashboard.android.navigation.HistoryChartSectionUiState
 import com.alas.dashboard.android.navigation.HistoryDurationUnit
@@ -191,7 +192,7 @@ fun HistoryScreen(
                             FilterChip(
                                 selected = state.selectedHistoryResources.contains(resourceName),
                                 onClick = { onToggleResource(resourceName) },
-                                label = { Text(resourceName) },
+                                label = { Text(resourceName.displayResourceName()) },
                             )
                         }
                     }
@@ -454,7 +455,7 @@ fun SettingsScreen(
                                 FilterChip(
                                     selected = ruleResource == item.resourceName,
                                     onClick = { ruleResource = item.resourceName },
-                                    label = { Text(item.resourceName) },
+                                    label = { Text(item.resourceName.displayResourceName()) },
                                 )
                             }
                         }
@@ -501,7 +502,11 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
-                            Text("${rule.resourceName} ${if (rule.direction == ThresholdDirection.ABOVE) ">" else "<"} ${rule.threshold} (${rule.kind})")
+                            Text(
+                                "${rule.resourceName.displayResourceName()} " +
+                                    "${if (rule.direction == ThresholdDirection.ABOVE) ">" else "<"} " +
+                                    "${rule.threshold} (${rule.kind})",
+                            )
                             TextButton(onClick = { onDeleteRule(rule.id) }) { Text("删除") }
                         }
                     }
@@ -607,7 +612,7 @@ private fun AdminUserCard(
 private fun ResourceCard(resource: ResourceSnapshot) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(resource.resourceName, style = MaterialTheme.typography.titleMedium)
+            Text(resource.resourceName.displayResourceName(), style = MaterialTheme.typography.titleMedium)
             Text("当前值: ${resource.value}")
             resource.limit?.let { Text("上限: $it") }
             resource.total?.let { Text("总量: $it") }
@@ -643,7 +648,7 @@ private fun HistoryChartCard(
     var selectedSample by remember(section.samples) { mutableStateOf(section.samples.lastOrNull()) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(section.resourceName, style = MaterialTheme.typography.titleMedium)
+            Text(section.resourceName.displayResourceName(), style = MaterialTheme.typography.titleMedium)
             Text("样本数: ${section.samples.size}", style = MaterialTheme.typography.bodySmall)
             HistoryLineChart(
                 resourceName = section.resourceName,

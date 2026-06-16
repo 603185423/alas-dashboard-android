@@ -30,6 +30,8 @@ import com.alas.dashboard.android.core.model.AccountConfig
 import com.alas.dashboard.android.core.model.DashboardUser
 import com.alas.dashboard.android.core.model.NotificationRule
 import com.alas.dashboard.android.core.model.ResourceSnapshot
+import com.alas.dashboard.android.core.model.sortedByResourceDisplayOrder
+import com.alas.dashboard.android.core.model.sortedResourceNames
 import com.alas.dashboard.android.core.repository.ConnectionTestReport
 import com.alas.dashboard.android.core.repository.DashboardRepository
 import com.alas.dashboard.android.core.work.DashboardSyncRunner
@@ -201,7 +203,8 @@ class DashboardViewModel @Inject constructor(
             testReport = testReport,
         )
     }.combine(rotatedToken) { draft: UiStateDraft, token: String? ->
-        val availableResources = draft.base.dashboard.latestResources.map { it.resourceName }
+        val latestResources = draft.base.dashboard.latestResources.sortedByResourceDisplayOrder()
+        val availableResources = latestResources.map { it.resourceName }.sortedResourceNames()
         val displaySelection = draft.selectedResources
             .filter { it in availableResources }
             .ifEmpty { availableResources.take(4) }
@@ -212,7 +215,7 @@ class DashboardViewModel @Inject constructor(
             )
         }
         DashboardUiState(
-            latestResources = draft.base.dashboard.latestResources,
+            latestResources = latestResources,
             historySections = historySections,
             accountConfig = draft.base.dashboard.accountConfig,
             themeMode = draft.base.dashboard.preferences.themeMode.toThemeMode(),
@@ -457,7 +460,7 @@ class DashboardViewModel @Inject constructor(
     }
 
     private suspend fun normalizedHistorySelection(): List<String> {
-        val latest = repository.latestNow().map { it.resourceName }
+        val latest = repository.latestNow().map { it.resourceName }.sortedResourceNames()
         if (latest.isEmpty()) {
             selectedHistoryResources.value = emptySet()
             historyResources.value = emptyMap()

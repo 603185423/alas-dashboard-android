@@ -33,3 +33,5 @@ google-services.json
 # Android Profiling
 *.hprof
 *.dm
+/game_asset
+/.kotlin

@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">ALAS Dashboard</string>
+    <string name="widget_description">显示 ALAS Dashboard 资源信息的小组件</string>
+    <string name="widget_compact_name">当前资源（紧凑）</string>
+    <string name="widget_standard_name">当前资源（标准）</string>
+    <string name="widget_large_name">当前资源（大号）</string>
+</resources>

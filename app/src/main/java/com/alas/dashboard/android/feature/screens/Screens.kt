@@ -11,6 +11,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -21,9 +22,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -31,6 +36,8 @@ import androidx.compose.material3.ElevatedAssistChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -46,6 +53,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -657,20 +665,58 @@ private fun HistoryChartCard(
     range: HistoryRangeState,
 ) {
     var selectedSample by remember(section.samples) { mutableStateOf(section.samples.lastOrNull()) }
+    var expanded by rememberSaveable(section.resourceName) { mutableStateOf(false) }
+    val chartHeight = if (expanded) 260.dp else 124.dp
+    val cardVerticalPadding = if (expanded) 16.dp else 10.dp
+    val cardHorizontalPadding = if (expanded) 16.dp else 12.dp
+    val contentSpacing = if (expanded) 12.dp else 6.dp
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(section.resourceName.displayResourceName(), style = MaterialTheme.typography.titleMedium)
-            Text("样本数: ${section.samples.size}", style = MaterialTheme.typography.bodySmall)
+        Column(
+            modifier = Modifier.padding(
+                horizontal = cardHorizontalPadding,
+                vertical = cardVerticalPadding,
+            ),
+            verticalArrangement = Arrangement.spacedBy(contentSpacing),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    section.resourceName.displayResourceName(),
+                    style = if (expanded) {
+                        MaterialTheme.typography.titleMedium
+                    } else {
+                        MaterialTheme.typography.titleSmall
+                    },
+                )
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clickable { expanded = !expanded },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        contentDescription = if (expanded) "收起图表详情" else "展开图表详情",
+                    )
+                }
+            }
+            if (expanded) {
+                Text("样本数: ${section.samples.size}", style = MaterialTheme.typography.bodySmall)
+            }
             HistoryLineChart(
                 resourceName = section.resourceName,
                 samples = section.samples,
                 range = range,
+                expanded = expanded,
                 onPointSelected = { selectedSample = it },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(260.dp),
+                    .height(chartHeight),
             )
-            selectedSample?.let { sample ->
+            if (expanded) selectedSample?.let { sample ->
                 Surface(
                     tonalElevation = 2.dp,
                     shape = MaterialTheme.shapes.medium,
@@ -688,7 +734,7 @@ private fun HistoryChartCard(
                     }
                 }
             }
-            if (section.samples.isNotEmpty()) {
+            if (expanded && section.samples.isNotEmpty()) {
                 val latest = section.samples.last()
                 Text(
                     text = "最新记录: ${formatDateTime(latest.recordedAtMs)} / ${latest.value}",
@@ -704,6 +750,7 @@ private fun HistoryLineChart(
     resourceName: String,
     samples: List<ResourceSnapshot>,
     range: HistoryRangeState,
+    expanded: Boolean,
     onPointSelected: (ResourceSnapshot) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -758,10 +805,10 @@ private fun HistoryLineChart(
             )
         }
     }
-    val startAxisFormatter = remember(axisTextColor) {
+    val startAxisFormatter = remember(axisTextColor, expanded) {
         CartesianValueFormatter { value, _, _ ->
             colorizedAxisLabel(
-                text = formatChartAxisValue(value),
+                text = formatChartAxisValue(value, compact = !expanded),
                 color = axisTextColor,
             )
         }
@@ -801,6 +848,7 @@ private fun HistoryLineChart(
     }
 
     key(
+        expanded,
         range.quickRange,
         range.customDurationValue,
         range.customDurationUnit,
@@ -817,12 +865,16 @@ private fun HistoryLineChart(
                     label = axisLabelComponent,
                     valueFormatter = startAxisFormatter,
                 ),
-                bottomAxis = rememberBottomAxis(
-                    label = axisLabelComponent,
-                    valueFormatter = bottomAxisFormatter,
-                    itemPlacer = horizontalItemPlacer,
-                    guideline = if (showBottomGuideline) rememberAxisGuidelineComponent() else null,
-                ),
+                bottomAxis = if (expanded) {
+                    rememberBottomAxis(
+                        label = axisLabelComponent,
+                        valueFormatter = bottomAxisFormatter,
+                        itemPlacer = horizontalItemPlacer,
+                        guideline = if (showBottomGuideline) rememberAxisGuidelineComponent() else null,
+                    )
+                } else {
+                    null
+                },
                 marker = marker,
                 markerVisibilityListener = markerVisibilityListener,
             ),
@@ -904,12 +956,19 @@ private fun formatAxisTime(timestamp: Long, range: HistoryQuickRange): String =
         else -> SimpleDateFormat("MM-dd", Locale.getDefault()).format(Date(timestamp))
     }
 
-private fun formatChartAxisValue(value: Double): String =
-    if (value == value.roundToLong().toDouble()) {
-        value.roundToLong().toString()
-    } else {
-        String.format(Locale.getDefault(), "%.1f", value)
+private fun formatChartAxisValue(value: Double, compact: Boolean): String {
+    val roundedValue = value.roundToLong()
+    if (!compact || abs(value) < 1_000) {
+        return roundedValue.toString()
     }
+
+    val valueInThousands = value / 1_000.0
+    return if (abs(value) < 10_000) {
+        String.format(Locale.getDefault(), "%.1fk", valueInThousands)
+    } else {
+        "${valueInThousands.roundToLong()}k"
+    }
+}
 
 private fun colorizedAxisLabel(text: String, color: Int): CharSequence =
     SpannableString(text).apply {

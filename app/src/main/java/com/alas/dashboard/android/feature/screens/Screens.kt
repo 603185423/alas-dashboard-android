@@ -450,8 +450,11 @@ fun SettingsScreen(
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("阈值通知", style = MaterialTheme.typography.titleMedium)
                     if (state.latestResources.isNotEmpty()) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            state.latestResources.take(6).forEach { item ->
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(
+                                items = state.latestResources,
+                                key = { it.resourceName },
+                            ) { item ->
                                 FilterChip(
                                     selected = ruleResource == item.resourceName,
                                     onClick = { ruleResource = item.resourceName },
@@ -466,11 +469,19 @@ fun SettingsScreen(
                         label = { Text("阈值") },
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(selected = above, onClick = { above = true }, label = { Text("高于") })
-                        FilterChip(selected = !above, onClick = { above = false }, label = { Text("低于") })
-                        FilterChip(selected = !persistent, onClick = { persistent = false }, label = { Text("一次性") })
-                        FilterChip(selected = persistent, onClick = { persistent = true }, label = { Text("持续型") })
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        item {
+                            FilterChip(selected = above, onClick = { above = true }, label = { Text("高于") })
+                        }
+                        item {
+                            FilterChip(selected = !above, onClick = { above = false }, label = { Text("低于") })
+                        }
+                        item {
+                            FilterChip(selected = !persistent, onClick = { persistent = false }, label = { Text("一次性") })
+                        }
+                        item {
+                            FilterChip(selected = persistent, onClick = { persistent = true }, label = { Text("持续型") })
+                        }
                     }
                     if (persistent) {
                         OutlinedTextField(

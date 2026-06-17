@@ -1,5 +1,26 @@
 package com.alas.dashboard.android.core.model
 
+import androidx.annotation.DrawableRes
+import com.alas.dashboard.android.R
+
+private val ResourceIcons = mapOf(
+    "Oil" to R.drawable.ic_res_oil,
+    "Coin" to R.drawable.ic_res_coin,
+    "Gem" to R.drawable.ic_res_gem,
+    "Cube" to R.drawable.ic_res_cube,
+    "Pt" to R.drawable.ic_res_pt,
+    "YellowCoin" to R.drawable.ic_res_yellowcoin,
+    "PurpleCoin" to R.drawable.ic_res_purplecoin,
+    "Merit" to R.drawable.ic_res_merit,
+    "Medal" to R.drawable.ic_res_medal,
+    "Core" to R.drawable.ic_res_core,
+    "GuildCoin" to R.drawable.ic_res_guildcoin,
+)
+
+@DrawableRes
+fun resourceIconRes(resourceName: String): Int =
+    ResourceIcons[resourceName] ?: R.drawable.ic_res_unknown
+
 private val ResourceDisplayNames = mapOf(
     "Oil" to "石油",
     "Coin" to "物资",

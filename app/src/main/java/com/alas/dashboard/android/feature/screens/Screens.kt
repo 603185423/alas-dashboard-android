@@ -170,7 +170,7 @@ fun HistoryScreen(
         mutableStateOf(state.historyRange.customEndMs)
     }
 
-    LaunchedEffect(state.availableHistoryResources, state.selectedHistoryResources, state.historyLoading) {
+    LaunchedEffect(state.availableHistoryResources, state.selectedHistoryResources, state.historyRange) {
         if (
             state.availableHistoryResources.isNotEmpty() &&
             state.selectedHistoryResources.isNotEmpty() &&

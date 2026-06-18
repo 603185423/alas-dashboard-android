@@ -72,7 +72,8 @@ class ThresholdNotifier @Inject constructor(
                         val start = state.satisfiedSinceMs ?: now
                         val durationMs = rule.durationMinutes.coerceAtLeast(1) * 60_000L
                         val shouldNotify = now - start >= durationMs
-                        if (shouldNotify && !state.persistentShown) {
+                        val shouldShowOrRefresh = shouldNotify || state.persistentShown
+                        if (shouldShowOrRefresh) {
                             notifyPersistent(rule, resource)
                             currentStates[rule.id] = state.copy(
                                 satisfiedSinceMs = start,

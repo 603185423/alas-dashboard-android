@@ -2,6 +2,7 @@ package com.alas.dashboard.android.core.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 @Serializable
 data class ResourceSnapshotDto(
@@ -24,6 +25,25 @@ data class LatestResourcesResponse(
 data class ResourceHistoryResponse(
     @SerialName("resource_name") val resourceName: String,
     val items: List<ResourceSnapshotDto>,
+)
+
+@Serializable
+data class EventDto(
+    val id: Long,
+    @SerialName("source_instance") val sourceInstance: String,
+    @SerialName("source_config") val sourceConfig: String? = null,
+    @SerialName("event_category") val eventCategory: String,
+    @SerialName("event_type") val eventType: String,
+    val status: String,
+    val reason: String? = null,
+    val payload: JsonObject? = null,
+    @SerialName("recorded_at_ms") val recordedAtMs: Long,
+    @SerialName("received_at_ms") val receivedAtMs: Long,
+)
+
+@Serializable
+data class LatestEventsResponse(
+    val events: List<EventDto>,
 )
 
 @Serializable
@@ -132,6 +152,33 @@ data class AppPreferences(
     val pollingMinutes: Int = 15,
     val backgroundSyncEnabled: Boolean = true,
     val onboardingCompleted: Boolean = false,
+    val scriptStatusAlertsEnabled: Boolean = false,
+    val scriptStatusChangeNotificationsEnabled: Boolean = true,
+    val scriptStatusPersistentNotificationsEnabled: Boolean = false,
+    val scriptStatusPersistentMinutes: Int = 30,
+)
+
+data class ScriptRuntimeEvent(
+    val id: Long,
+    val sourceInstance: String,
+    val sourceConfig: String?,
+    val eventCategory: String,
+    val eventType: String,
+    val status: String,
+    val reason: String?,
+    val payload: JsonObject?,
+    val recordedAtMs: Long,
+    val receivedAtMs: Long,
+)
+
+@Serializable
+data class ScriptStatusRuntimeState(
+    val sourceKey: String,
+    val lastStatus: String? = null,
+    val lastReason: String? = null,
+    val lastRecordedAtMs: Long? = null,
+    val nonRunningSinceMs: Long? = null,
+    val persistentShown: Boolean = false,
 )
 
 @Serializable
@@ -156,6 +203,10 @@ data class AppPreferencesJson(
     val pollingMinutes: Int,
     val backgroundSyncEnabled: Boolean,
     val onboardingCompleted: Boolean,
+    val scriptStatusAlertsEnabled: Boolean = false,
+    val scriptStatusChangeNotificationsEnabled: Boolean = true,
+    val scriptStatusPersistentNotificationsEnabled: Boolean = false,
+    val scriptStatusPersistentMinutes: Int = 30,
 )
 
 @Serializable
@@ -189,6 +240,19 @@ fun ResourceSnapshotDto.toDomain() = ResourceSnapshot(
     ageMs = ageMs,
 )
 
+fun EventDto.toDomain() = ScriptRuntimeEvent(
+    id = id,
+    sourceInstance = sourceInstance,
+    sourceConfig = sourceConfig,
+    eventCategory = eventCategory,
+    eventType = eventType,
+    status = status,
+    reason = reason,
+    payload = payload,
+    recordedAtMs = recordedAtMs,
+    receivedAtMs = receivedAtMs,
+)
+
 fun UserDto.toDomain() = DashboardUser(
     id = id,
     userKey = userKey,
@@ -197,3 +261,7 @@ fun UserDto.toDomain() = DashboardUser(
     createdAtMs = createdAtMs,
     updatedAtMs = updatedAtMs,
 )
+
+fun ScriptRuntimeEvent.sourceKey(): String = listOf(sourceInstance, sourceConfig.orEmpty(), eventCategory).joinToString("|")
+
+fun ScriptRuntimeEvent.isRunningStatus(): Boolean = status.equals("running", ignoreCase = true)

@@ -18,6 +18,7 @@ import com.alas.dashboard.android.core.model.NotificationRule
 import com.alas.dashboard.android.core.model.NotificationRuleJson
 import com.alas.dashboard.android.core.model.ResourceSnapshot
 import com.alas.dashboard.android.core.model.RuleKind
+import com.alas.dashboard.android.core.model.ScriptRuntimeEvent
 import com.alas.dashboard.android.core.model.ThresholdDirection
 import com.alas.dashboard.android.core.model.WidgetConfig
 import com.alas.dashboard.android.core.model.WidgetConfigJson
@@ -28,6 +29,7 @@ import com.alas.dashboard.android.core.network.ApiFactory
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -42,6 +44,7 @@ class DashboardRepository @Inject constructor(
 ) {
     private val exportJson = Json { prettyPrint = true }
     private val importJson = Json { ignoreUnknownKeys = true }
+    private val latestScriptRuntimeEvents = MutableStateFlow<List<ScriptRuntimeEvent>>(emptyList())
 
     val accountConfig: Flow<AccountConfig> = settingsStore.accountConfig
     val appPreferences: Flow<AppPreferences> = settingsStore.appPreferences
@@ -58,12 +61,14 @@ class DashboardRepository @Inject constructor(
 
     fun observeDashboardState(): Flow<DashboardState> = combine(
         observeLatestResources(),
+        latestScriptRuntimeEvents,
         accountConfig,
         appPreferences,
         notificationRules,
-    ) { latest, account, preferences, rules ->
+    ) { latest, scriptEvents, account, preferences, rules ->
         DashboardState(
             latestResources = latest,
+            latestScriptRuntimeEvents = scriptEvents,
             accountConfig = account,
             preferences = preferences,
             rules = rules,
@@ -209,6 +214,24 @@ class DashboardRepository @Inject constructor(
         return latest
     }
 
+    suspend fun refreshLatestScriptRuntimeEvents(): List<ScriptRuntimeEvent> {
+        val account = accountConfig.first()
+        require(account.baseUrl.isNotBlank() && account.userToken.isNotBlank()) {
+            "请先配置 Base URL 和用户 Token"
+        }
+        val api = apiFactory.create(account.baseUrl)
+        val latest = api.latestEvents(
+            auth = auth(account.userToken),
+            eventCategory = "script_runtime",
+        ).events.map { it.toDomain() }.sortedBy { it.sourceInstance }
+        latestScriptRuntimeEvents.value = latest
+        return latest
+    }
+
+    fun clearLatestScriptRuntimeEvents() {
+        latestScriptRuntimeEvents.value = emptyList()
+    }
+
     suspend fun refreshHistory(
         resourceName: String,
         fromMs: Long? = null,
@@ -292,6 +315,10 @@ class DashboardRepository @Inject constructor(
                 pollingMinutes = preferences.pollingMinutes,
                 backgroundSyncEnabled = preferences.backgroundSyncEnabled,
                 onboardingCompleted = preferences.onboardingCompleted,
+                scriptStatusAlertsEnabled = preferences.scriptStatusAlertsEnabled,
+                scriptStatusChangeNotificationsEnabled = preferences.scriptStatusChangeNotificationsEnabled,
+                scriptStatusPersistentNotificationsEnabled = preferences.scriptStatusPersistentNotificationsEnabled,
+                scriptStatusPersistentMinutes = preferences.scriptStatusPersistentMinutes,
             ),
             rules = rules.map { it.toJson() },
             widgets = widgets.filter { it.appWidgetId >= 0 }.map { it.toJson() },
@@ -317,6 +344,10 @@ class DashboardRepository @Inject constructor(
         settingsStore.updatePollingMinutes(export.preferences.pollingMinutes)
         settingsStore.updateBackgroundSyncEnabled(export.preferences.backgroundSyncEnabled)
         settingsStore.updateOnboardingCompleted(export.preferences.onboardingCompleted)
+        settingsStore.updateScriptStatusAlertsEnabled(export.preferences.scriptStatusAlertsEnabled)
+        settingsStore.updateScriptStatusChangeNotificationsEnabled(export.preferences.scriptStatusChangeNotificationsEnabled)
+        settingsStore.updateScriptStatusPersistentNotificationsEnabled(export.preferences.scriptStatusPersistentNotificationsEnabled)
+        settingsStore.updateScriptStatusPersistentMinutes(export.preferences.scriptStatusPersistentMinutes)
         settingsStore.saveRules(export.rules.map { it.toDomain() })
         settingsStore.saveWidgetConfigs(export.widgets.map { it.toDomain() })
     }
@@ -330,11 +361,24 @@ class DashboardRepository @Inject constructor(
 
     suspend fun latestNow(): List<ResourceSnapshot> = dao.getLatestNow().map { it.toDomain() }.sortedByResourceDisplayOrder()
 
+    suspend fun updateScriptStatusAlertsEnabled(enabled: Boolean) =
+        settingsStore.updateScriptStatusAlertsEnabled(enabled)
+
+    suspend fun updateScriptStatusChangeNotificationsEnabled(enabled: Boolean) =
+        settingsStore.updateScriptStatusChangeNotificationsEnabled(enabled)
+
+    suspend fun updateScriptStatusPersistentNotificationsEnabled(enabled: Boolean) =
+        settingsStore.updateScriptStatusPersistentNotificationsEnabled(enabled)
+
+    suspend fun updateScriptStatusPersistentMinutes(minutes: Int) =
+        settingsStore.updateScriptStatusPersistentMinutes(minutes)
+
     private fun auth(token: String) = "Bearer ${token.trim()}"
 }
 
 data class DashboardState(
     val latestResources: List<ResourceSnapshot> = emptyList(),
+    val latestScriptRuntimeEvents: List<ScriptRuntimeEvent> = emptyList(),
     val accountConfig: AccountConfig = AccountConfig(),
     val preferences: AppPreferences = AppPreferences(),
     val rules: List<NotificationRule> = emptyList(),

@@ -30,6 +30,7 @@ import com.alas.dashboard.android.core.model.AccountConfig
 import com.alas.dashboard.android.core.model.DashboardUser
 import com.alas.dashboard.android.core.model.NotificationRule
 import com.alas.dashboard.android.core.model.ResourceSnapshot
+import com.alas.dashboard.android.core.model.ScriptRuntimeEvent
 import com.alas.dashboard.android.core.model.sortedByResourceDisplayOrder
 import com.alas.dashboard.android.core.model.sortedResourceNames
 import com.alas.dashboard.android.core.repository.ConnectionTestReport
@@ -129,6 +130,10 @@ fun DashboardApp(viewModel: DashboardViewModel = hiltViewModel()) {
                     onThemeSelected = viewModel::updateThemeMode,
                     onPollingMinutesChanged = viewModel::updatePolling,
                     onBackgroundSyncChanged = viewModel::updateBackgroundSync,
+                    onScriptStatusAlertsEnabledChanged = viewModel::updateScriptStatusAlertsEnabled,
+                    onScriptStatusChangeNotificationsEnabledChanged = viewModel::updateScriptStatusChangeNotificationsEnabled,
+                    onScriptStatusPersistentNotificationsEnabledChanged = viewModel::updateScriptStatusPersistentNotificationsEnabled,
+                    onScriptStatusPersistentMinutesChanged = viewModel::updateScriptStatusPersistentMinutes,
                     onAddRule = viewModel::addRule,
                     onDeleteRule = viewModel::deleteRule,
                     onExportConfig = viewModel::exportConfig,
@@ -216,12 +221,17 @@ class DashboardViewModel @Inject constructor(
         }
         DashboardUiState(
             latestResources = latestResources,
+            latestScriptRuntimeEvents = draft.base.dashboard.latestScriptRuntimeEvents,
             historySections = historySections,
             accountConfig = draft.base.dashboard.accountConfig,
             themeMode = draft.base.dashboard.preferences.themeMode.toThemeMode(),
             pollingMinutes = draft.base.dashboard.preferences.pollingMinutes,
             backgroundSyncEnabled = draft.base.dashboard.preferences.backgroundSyncEnabled,
             onboardingCompleted = draft.base.dashboard.preferences.onboardingCompleted,
+            scriptStatusAlertsEnabled = draft.base.dashboard.preferences.scriptStatusAlertsEnabled,
+            scriptStatusChangeNotificationsEnabled = draft.base.dashboard.preferences.scriptStatusChangeNotificationsEnabled,
+            scriptStatusPersistentNotificationsEnabled = draft.base.dashboard.preferences.scriptStatusPersistentNotificationsEnabled,
+            scriptStatusPersistentMinutes = draft.base.dashboard.preferences.scriptStatusPersistentMinutes,
             rules = draft.base.dashboard.rules,
             hasAdminToken = draft.base.hasAdminToken,
             adminUsers = draft.base.users,
@@ -360,6 +370,48 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
+    fun updateScriptStatusAlertsEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.updateScriptStatusAlertsEnabled(enabled)
+            if (enabled) {
+                performImmediateSync()
+            } else {
+                syncRunner.clearScriptRuntimeState()
+            }
+            message.value = if (enabled) "脚本状态提醒已开启" else "脚本状态提醒已关闭"
+        }
+    }
+
+    fun updateScriptStatusChangeNotificationsEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.updateScriptStatusChangeNotificationsEnabled(enabled)
+            if (repository.appPreferences.first().scriptStatusAlertsEnabled) {
+                performImmediateSync()
+            }
+            message.value = if (enabled) "状态变化通知已开启" else "状态变化通知已关闭"
+        }
+    }
+
+    fun updateScriptStatusPersistentNotificationsEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.updateScriptStatusPersistentNotificationsEnabled(enabled)
+            if (repository.appPreferences.first().scriptStatusAlertsEnabled) {
+                performImmediateSync()
+            }
+            message.value = if (enabled) "持久通知已开启" else "持久通知已关闭"
+        }
+    }
+
+    fun updateScriptStatusPersistentMinutes(minutes: Int) {
+        viewModelScope.launch {
+            repository.updateScriptStatusPersistentMinutes(minutes)
+            if (repository.appPreferences.first().scriptStatusAlertsEnabled) {
+                performImmediateSync()
+            }
+            message.value = "脚本状态持久通知时长已更新"
+        }
+    }
+
     fun addRule(rule: NotificationRule) {
         viewModelScope.launch {
             val rules = repository.notificationRules.first()
@@ -482,12 +534,17 @@ class DashboardViewModel @Inject constructor(
 
 data class DashboardUiState(
     val latestResources: List<ResourceSnapshot> = emptyList(),
+    val latestScriptRuntimeEvents: List<ScriptRuntimeEvent> = emptyList(),
     val historySections: List<HistoryChartSectionUiState> = emptyList(),
     val accountConfig: AccountConfig = AccountConfig(),
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val pollingMinutes: Int = 15,
     val backgroundSyncEnabled: Boolean = true,
     val onboardingCompleted: Boolean = false,
+    val scriptStatusAlertsEnabled: Boolean = false,
+    val scriptStatusChangeNotificationsEnabled: Boolean = true,
+    val scriptStatusPersistentNotificationsEnabled: Boolean = false,
+    val scriptStatusPersistentMinutes: Int = 30,
     val rules: List<NotificationRule> = emptyList(),
     val hasAdminToken: Boolean = false,
     val adminUsers: List<DashboardUser> = emptyList(),

@@ -16,6 +16,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.alas.dashboard.android.core.notification.ScriptRuntimeNotifier
 import com.alas.dashboard.android.core.notification.ThresholdNotifier
 import com.alas.dashboard.android.core.repository.DashboardRepository
 import com.alas.dashboard.android.core.widget.updateAllWidgets
@@ -45,9 +46,24 @@ class DashboardSyncRunner @Inject constructor(
     @ApplicationContext private val context: Context,
     private val repository: DashboardRepository,
     private val thresholdNotifier: ThresholdNotifier,
+    private val scriptRuntimeNotifier: ScriptRuntimeNotifier,
 ) {
     suspend fun syncLatest() = repository.refreshLatest().also { latest ->
         thresholdNotifier.evaluate(latest)
+        val preferences = repository.appPreferences.first()
+        if (preferences.scriptStatusAlertsEnabled) {
+            val scriptEvents = repository.refreshLatestScriptRuntimeEvents()
+            scriptRuntimeNotifier.evaluate(scriptEvents)
+        } else {
+            repository.clearLatestScriptRuntimeEvents()
+            scriptRuntimeNotifier.clearAll()
+        }
+        updateAllWidgets(context)
+    }
+
+    suspend fun clearScriptRuntimeState() {
+        repository.clearLatestScriptRuntimeEvents()
+        scriptRuntimeNotifier.clearAll()
         updateAllWidgets(context)
     }
 }

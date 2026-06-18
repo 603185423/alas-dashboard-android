@@ -14,6 +14,7 @@ import com.alas.dashboard.android.core.model.NotificationRule
 import com.alas.dashboard.android.core.model.NotificationRuleJson
 import com.alas.dashboard.android.core.model.RuleKind
 import com.alas.dashboard.android.core.model.RuleRuntimeState
+import com.alas.dashboard.android.core.model.ScriptStatusRuntimeState
 import com.alas.dashboard.android.core.model.ThresholdDirection
 import com.alas.dashboard.android.core.model.WidgetConfig
 import com.alas.dashboard.android.core.model.WidgetConfigJson
@@ -46,12 +47,17 @@ class SettingsStore @Inject constructor(
         val pollingMinutes = intPreferencesKey("polling_minutes")
         val backgroundSyncEnabled = booleanPreferencesKey("background_sync_enabled")
         val onboardingCompleted = booleanPreferencesKey("onboarding_completed")
+        val scriptStatusAlertsEnabled = booleanPreferencesKey("script_status_alerts_enabled")
+        val scriptStatusChangeNotificationsEnabled = booleanPreferencesKey("script_status_change_notifications_enabled")
+        val scriptStatusPersistentNotificationsEnabled = booleanPreferencesKey("script_status_persistent_notifications_enabled")
+        val scriptStatusPersistentMinutes = intPreferencesKey("script_status_persistent_minutes")
         val baseUrl = stringPreferencesKey("base_url")
         val userToken = stringPreferencesKey("user_token")
         val adminToken = stringPreferencesKey("admin_token")
         val rulesJson = stringPreferencesKey("rules_json")
         val widgetConfigsJson = stringPreferencesKey("widget_configs_json")
         val runtimeJson = stringPreferencesKey("runtime_json")
+        val scriptStatusRuntimeJson = stringPreferencesKey("script_status_runtime_json")
     }
 
     val appPreferences: Flow<AppPreferences> = context.dataStore.data
@@ -62,6 +68,10 @@ class SettingsStore @Inject constructor(
                 pollingMinutes = prefs[Keys.pollingMinutes] ?: 15,
                 backgroundSyncEnabled = prefs[Keys.backgroundSyncEnabled] ?: true,
                 onboardingCompleted = prefs[Keys.onboardingCompleted] ?: false,
+                scriptStatusAlertsEnabled = prefs[Keys.scriptStatusAlertsEnabled] ?: false,
+                scriptStatusChangeNotificationsEnabled = prefs[Keys.scriptStatusChangeNotificationsEnabled] ?: true,
+                scriptStatusPersistentNotificationsEnabled = prefs[Keys.scriptStatusPersistentNotificationsEnabled] ?: false,
+                scriptStatusPersistentMinutes = prefs[Keys.scriptStatusPersistentMinutes] ?: 30,
             )
         }
 
@@ -99,6 +109,14 @@ class SettingsStore @Inject constructor(
             json.decodeFromString<List<RuleRuntimeStateJson>>(raw).map { it.toDomain() }
         }
 
+    val scriptStatusRuntimeStates: Flow<List<ScriptStatusRuntimeState>> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { prefs ->
+            val raw = prefs[Keys.scriptStatusRuntimeJson].orEmpty()
+            if (raw.isBlank()) return@map emptyList()
+            json.decodeFromString<List<ScriptStatusRuntimeState>>(raw)
+        }
+
     suspend fun updateThemeMode(mode: ThemeMode) = edit { it[Keys.themeMode] = mode.name }
 
     suspend fun updatePollingMinutes(minutes: Int) = edit { it[Keys.pollingMinutes] = minutes }
@@ -108,6 +126,18 @@ class SettingsStore @Inject constructor(
 
     suspend fun updateOnboardingCompleted(completed: Boolean) =
         edit { it[Keys.onboardingCompleted] = completed }
+
+    suspend fun updateScriptStatusAlertsEnabled(enabled: Boolean) =
+        edit { it[Keys.scriptStatusAlertsEnabled] = enabled }
+
+    suspend fun updateScriptStatusChangeNotificationsEnabled(enabled: Boolean) =
+        edit { it[Keys.scriptStatusChangeNotificationsEnabled] = enabled }
+
+    suspend fun updateScriptStatusPersistentNotificationsEnabled(enabled: Boolean) =
+        edit { it[Keys.scriptStatusPersistentNotificationsEnabled] = enabled }
+
+    suspend fun updateScriptStatusPersistentMinutes(minutes: Int) =
+        edit { it[Keys.scriptStatusPersistentMinutes] = minutes.coerceAtLeast(1) }
 
     suspend fun updateAccount(config: AccountConfig) = edit {
         it[Keys.baseUrl] = config.baseUrl.trimEnd('/')
@@ -127,6 +157,10 @@ class SettingsStore @Inject constructor(
         it[Keys.runtimeJson] = json.encodeToString(states.map { item -> item.toJson() })
     }
 
+    suspend fun saveScriptStatusRuntimeStates(states: List<ScriptStatusRuntimeState>) = edit {
+        it[Keys.scriptStatusRuntimeJson] = json.encodeToString(states)
+    }
+
     suspend fun clearRuntimeStateForRule(ruleId: String) {
         val updated = runtimeStatesSnapshot().filterNot { it.ruleId == ruleId }
         saveRuntimeStates(updated)
@@ -135,6 +169,11 @@ class SettingsStore @Inject constructor(
     suspend fun runtimeStatesSnapshot(): List<RuleRuntimeState> = firstValue(Keys.runtimeJson) { raw ->
         if (raw.isBlank()) emptyList() else json.decodeFromString<List<RuleRuntimeStateJson>>(raw).map { it.toDomain() }
     }
+
+    suspend fun scriptStatusRuntimeStatesSnapshot(): List<ScriptStatusRuntimeState> =
+        firstValue(Keys.scriptStatusRuntimeJson) { raw ->
+            if (raw.isBlank()) emptyList() else json.decodeFromString<List<ScriptStatusRuntimeState>>(raw)
+        }
 
     suspend fun rulesSnapshot(): List<NotificationRule> = firstValue(Keys.rulesJson) { raw ->
         if (raw.isBlank()) emptyList() else json.decodeFromString<List<NotificationRuleJson>>(raw).map { it.toDomain() }

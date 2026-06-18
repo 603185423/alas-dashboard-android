@@ -2,6 +2,7 @@ package com.alas.dashboard.android.core.network
 
 import com.alas.dashboard.android.core.model.CreateUserRequest
 import com.alas.dashboard.android.core.model.HealthResponse
+import com.alas.dashboard.android.core.model.LatestEventsResponse
 import com.alas.dashboard.android.core.model.LatestResourcesResponse
 import com.alas.dashboard.android.core.model.ResourceHistoryResponse
 import com.alas.dashboard.android.core.model.TokenResponse
@@ -46,6 +47,13 @@ interface DashboardApiService {
 
     @GET("/api/v1/widget/overview")
     suspend fun widgetOverview(@Header("Authorization") auth: String): LatestResourcesResponse
+
+    @GET("/api/v1/events/latest")
+    suspend fun latestEvents(
+        @Header("Authorization") auth: String,
+        @Query("event_category") eventCategory: String? = null,
+        @Query("source_instance") sourceInstance: String? = null,
+    ): LatestEventsResponse
 
     @GET("/api/v1/admin/users")
     suspend fun adminUsers(@Header("Authorization") auth: String): UsersResponse

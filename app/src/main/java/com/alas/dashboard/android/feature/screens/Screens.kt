@@ -69,8 +69,10 @@ import com.alas.dashboard.android.core.model.DashboardUser
 import com.alas.dashboard.android.core.model.NotificationRule
 import com.alas.dashboard.android.core.model.ResourceSnapshot
 import com.alas.dashboard.android.core.model.RuleKind
+import com.alas.dashboard.android.core.model.ScriptRuntimeEvent
 import com.alas.dashboard.android.core.model.ThresholdDirection
 import com.alas.dashboard.android.core.model.displayResourceName
+import com.alas.dashboard.android.core.model.isRunningStatus
 import com.alas.dashboard.android.navigation.DashboardUiState
 import com.alas.dashboard.android.navigation.HistoryChartSectionUiState
 import com.alas.dashboard.android.navigation.HistoryDurationUnit
@@ -132,6 +134,11 @@ fun OverviewScreen(
             ) {
                 Text("当前资源", style = MaterialTheme.typography.headlineSmall)
                 ElevatedAssistChip(onClick = onRefresh, label = { Text("刷新") })
+            }
+        }
+        if (state.scriptStatusAlertsEnabled && state.latestScriptRuntimeEvents.isNotEmpty()) {
+            item {
+                ScriptRuntimeOverviewCard(events = state.latestScriptRuntimeEvents)
             }
         }
         items(state.latestResources) { resource ->
@@ -307,6 +314,10 @@ fun SettingsScreen(
     onThemeSelected: (ThemeMode) -> Unit,
     onPollingMinutesChanged: (Int) -> Unit,
     onBackgroundSyncChanged: (Boolean) -> Unit,
+    onScriptStatusAlertsEnabledChanged: (Boolean) -> Unit,
+    onScriptStatusChangeNotificationsEnabledChanged: (Boolean) -> Unit,
+    onScriptStatusPersistentNotificationsEnabledChanged: (Boolean) -> Unit,
+    onScriptStatusPersistentMinutesChanged: (Int) -> Unit,
     onAddRule: (NotificationRule) -> Unit,
     onDeleteRule: (String) -> Unit,
     onExportConfig: (Context, Uri) -> Unit,
@@ -321,6 +332,9 @@ fun SettingsScreen(
     var ruleResource by remember { mutableStateOf(state.latestResources.firstOrNull()?.resourceName.orEmpty()) }
     var ruleThreshold by remember { mutableLongStateOf(1000L) }
     var durationMinutes by remember { mutableIntStateOf(30) }
+    var scriptStatusPersistentMinutes by remember(state.scriptStatusPersistentMinutes) {
+        mutableIntStateOf(state.scriptStatusPersistentMinutes)
+    }
     var above by remember { mutableStateOf(true) }
     var persistent by remember { mutableStateOf(false) }
 
@@ -456,6 +470,63 @@ fun SettingsScreen(
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("脚本状态提醒", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "开启后，每次资源刷新都会额外查询一次 `events/latest?event_category=script_runtime`。",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text("启用脚本状态提醒")
+                        Switch(
+                            checked = state.scriptStatusAlertsEnabled,
+                            onCheckedChange = onScriptStatusAlertsEnabledChanged,
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text("状态变化时通知一次")
+                        Switch(
+                            checked = state.scriptStatusChangeNotificationsEnabled,
+                            enabled = state.scriptStatusAlertsEnabled,
+                            onCheckedChange = onScriptStatusChangeNotificationsEnabledChanged,
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text("长时间未 running 时持久通知")
+                        Switch(
+                            checked = state.scriptStatusPersistentNotificationsEnabled,
+                            enabled = state.scriptStatusAlertsEnabled,
+                            onCheckedChange = onScriptStatusPersistentNotificationsEnabledChanged,
+                        )
+                    }
+                    if (state.scriptStatusAlertsEnabled && state.scriptStatusPersistentNotificationsEnabled) {
+                        OutlinedTextField(
+                            value = scriptStatusPersistentMinutes.toString(),
+                            onValueChange = { scriptStatusPersistentMinutes = it.toIntOrNull() ?: scriptStatusPersistentMinutes },
+                            label = { Text("持久通知时长（分钟）") },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Button(
+                            onClick = { onScriptStatusPersistentMinutesChanged(scriptStatusPersistentMinutes) },
+                        ) {
+                            Text("应用脚本状态时长")
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("阈值通知", style = MaterialTheme.typography.titleMedium)
                     if (state.latestResources.isNotEmpty()) {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -543,6 +614,26 @@ fun SettingsScreen(
                     OutlinedButton(onClick = { importLauncher.launch(arrayOf("application/json")) }) {
                         Text("导入配置")
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScriptRuntimeOverviewCard(events: List<ScriptRuntimeEvent>) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("脚本运行状态", style = MaterialTheme.typography.titleMedium)
+            events.forEach { event ->
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(event.sourceInstance, style = MaterialTheme.typography.titleSmall)
+                    Text("当前状态: ${scriptStatusLabel(event)}")
+                    Text("原因: ${event.reason?.takeIf { it.isNotBlank() } ?: "无"}")
+                    Text("记录时间: ${formatTime(event.recordedAtMs)}", style = MaterialTheme.typography.bodySmall)
+                }
+                if (event != events.last()) {
+                    HorizontalDivider()
                 }
             }
         }
@@ -638,6 +729,11 @@ private fun ResourceCard(resource: ResourceSnapshot) {
             Text("记录时间: ${formatTime(resource.recordedAtMs)}")
         }
     }
+}
+
+private fun scriptStatusLabel(event: ScriptRuntimeEvent): String = when {
+    event.isRunningStatus() -> "running"
+    else -> event.status
 }
 
 @OptIn(ExperimentalFoundationApi::class)

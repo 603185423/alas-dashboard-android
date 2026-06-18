@@ -84,8 +84,13 @@ class ScriptRuntimeNotifier @Inject constructor(
                 cancelChangeNotification(event.sourceKey())
             }
 
-            if (prefs.scriptStatusPersistentNotificationsEnabled && evaluation.shouldNotifyPersistent) {
-                notifyPersistent(event, prefs.scriptStatusPersistentMinutes)
+            val nonRunningDurationMs = evaluation.nextState.nonRunningSinceMs?.let { nowMs - it } ?: 0L
+            val shouldShowOrRefreshPersistent = prefs.scriptStatusPersistentNotificationsEnabled &&
+                !event.isRunningStatus() &&
+                evaluation.nextState.persistentShown
+
+            if (shouldShowOrRefreshPersistent) {
+                notifyPersistent(event, nonRunningDurationMs)
             } else if (!prefs.scriptStatusPersistentNotificationsEnabled || evaluation.shouldCancelPersistent) {
                 cancelPersistentNotification(event.sourceKey())
             }
@@ -125,9 +130,10 @@ class ScriptRuntimeNotifier @Inject constructor(
         )
     }
 
-    private fun notifyPersistent(event: ScriptRuntimeEvent, durationMinutes: Int) {
+    private fun notifyPersistent(event: ScriptRuntimeEvent, nonRunningDurationMs: Long) {
         val content = buildString {
-            append("${event.instanceLabel()} 已连续 $durationMinutes 分钟不在 running")
+            append("${event.instanceLabel()} 已连续未运行 ${formatElapsedDuration(nonRunningDurationMs)}")
+            append("，当前状态：${event.status}")
             event.reason.takeUnless { it.isNullOrBlank() }?.let { append("，原因：$it") }
         }
         notify(
@@ -220,3 +226,16 @@ fun evaluateScriptRuntimeState(
 
 private fun ScriptRuntimeEvent.instanceLabel(): String =
     sourceConfig?.takeIf { it.isNotBlank() }?.let { "$sourceInstance/$it" } ?: sourceInstance
+
+private fun formatElapsedDuration(durationMs: Long): String {
+    val totalMinutes = (durationMs.coerceAtLeast(0L) / 60_000L).coerceAtLeast(1L)
+    val days = totalMinutes / (24 * 60)
+    val hours = (totalMinutes % (24 * 60)) / 60
+    val minutes = totalMinutes % 60
+
+    return buildString {
+        if (days > 0) append("${days}天")
+        if (hours > 0) append("${hours}小时")
+        if (minutes > 0 || isEmpty()) append("${minutes}分钟")
+    }
+}

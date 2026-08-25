@@ -156,6 +156,7 @@ data class AppPreferences(
     val scriptStatusChangeNotificationsEnabled: Boolean = true,
     val scriptStatusPersistentNotificationsEnabled: Boolean = false,
     val scriptStatusPersistentMinutes: Int = 30,
+    val scriptStatusIgnoredInstances: Set<String> = emptySet(),
 )
 
 data class ScriptRuntimeEvent(

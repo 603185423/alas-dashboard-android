@@ -318,6 +318,7 @@ fun SettingsScreen(
     onScriptStatusChangeNotificationsEnabledChanged: (Boolean) -> Unit,
     onScriptStatusPersistentNotificationsEnabledChanged: (Boolean) -> Unit,
     onScriptStatusPersistentMinutesChanged: (Int) -> Unit,
+    onScriptStatusInstanceMonitoringChanged: (String, Boolean) -> Unit,
     onAddRule: (NotificationRule) -> Unit,
     onDeleteRule: (String) -> Unit,
     onExportConfig: (Context, Uri) -> Unit,
@@ -519,6 +520,34 @@ fun SettingsScreen(
                         ) {
                             Text("应用脚本状态时长")
                         }
+                    }
+                    if (state.scriptStatusAlertsEnabled && state.latestScriptRuntimeEvents.isNotEmpty()) {
+                        HorizontalDivider()
+                        Text("实例提醒", style = MaterialTheme.typography.titleSmall)
+                        state.latestScriptRuntimeEvents
+                            .distinctBy { it.sourceInstance }
+                            .sortedBy { it.sourceInstance }
+                            .forEach { event ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(event.sourceInstance)
+                                        Text(
+                                            text = "当前状态：${scriptStatusLabel(event)}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                        )
+                                    }
+                                    Switch(
+                                        checked = event.sourceInstance !in state.scriptStatusIgnoredInstances,
+                                        onCheckedChange = { monitored ->
+                                            onScriptStatusInstanceMonitoringChanged(event.sourceInstance, monitored)
+                                        },
+                                    )
+                                }
+                            }
                     }
                 }
             }

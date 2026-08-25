@@ -91,6 +91,9 @@ class DashboardRepository @Inject constructor(
 
     suspend fun saveRules(rules: List<NotificationRule>) = settingsStore.saveRules(rules)
 
+    suspend fun updateScriptStatusInstanceMonitoring(sourceInstance: String, monitored: Boolean) =
+        settingsStore.updateScriptStatusInstanceMonitoring(sourceInstance, monitored)
+
     suspend fun saveWidgetConfig(config: WidgetConfig) {
         val current = settingsStore.widgetConfigsSnapshot().filterNot { it.appWidgetId == config.appWidgetId }
         settingsStore.saveWidgetConfigs((current + config).sortedBy { it.appWidgetId })
@@ -231,6 +234,8 @@ class DashboardRepository @Inject constructor(
     fun clearLatestScriptRuntimeEvents() {
         latestScriptRuntimeEvents.value = emptyList()
     }
+
+    fun latestScriptRuntimeEventsSnapshot(): List<ScriptRuntimeEvent> = latestScriptRuntimeEvents.value
 
     suspend fun refreshHistory(
         resourceName: String,

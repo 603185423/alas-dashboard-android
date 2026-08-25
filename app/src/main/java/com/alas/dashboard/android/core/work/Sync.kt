@@ -16,6 +16,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.alas.dashboard.android.core.model.ScriptRuntimeEvent
 import com.alas.dashboard.android.core.notification.ScriptRuntimeNotifier
 import com.alas.dashboard.android.core.notification.ThresholdNotifier
 import com.alas.dashboard.android.core.repository.DashboardRepository
@@ -53,7 +54,9 @@ class DashboardSyncRunner @Inject constructor(
         val preferences = repository.appPreferences.first()
         if (preferences.scriptStatusAlertsEnabled) {
             val scriptEvents = repository.refreshLatestScriptRuntimeEvents()
-            scriptRuntimeNotifier.evaluate(scriptEvents)
+            scriptRuntimeNotifier.evaluate(
+                monitoredScriptRuntimeEvents(scriptEvents, preferences.scriptStatusIgnoredInstances),
+            )
         } else {
             repository.clearLatestScriptRuntimeEvents()
             scriptRuntimeNotifier.clearAll()
@@ -66,7 +69,26 @@ class DashboardSyncRunner @Inject constructor(
         scriptRuntimeNotifier.clearAll()
         updateAllWidgets(context)
     }
+
+    suspend fun refreshScriptRuntimeNotifications() {
+        val preferences = repository.appPreferences.first()
+        if (preferences.scriptStatusAlertsEnabled) {
+            scriptRuntimeNotifier.evaluate(
+                monitoredScriptRuntimeEvents(
+                    repository.latestScriptRuntimeEventsSnapshot(),
+                    preferences.scriptStatusIgnoredInstances,
+                ),
+            )
+        } else {
+            scriptRuntimeNotifier.clearAll()
+        }
+    }
 }
+
+internal fun monitoredScriptRuntimeEvents(
+    events: List<ScriptRuntimeEvent>,
+    ignoredInstances: Set<String>,
+) = events.filterNot { it.sourceInstance in ignoredInstances }
 
 @HiltWorker
 class DashboardSyncWorker @AssistedInject constructor(

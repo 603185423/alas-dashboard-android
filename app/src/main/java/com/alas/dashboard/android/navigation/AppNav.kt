@@ -134,6 +134,7 @@ fun DashboardApp(viewModel: DashboardViewModel = hiltViewModel()) {
                     onScriptStatusChangeNotificationsEnabledChanged = viewModel::updateScriptStatusChangeNotificationsEnabled,
                     onScriptStatusPersistentNotificationsEnabledChanged = viewModel::updateScriptStatusPersistentNotificationsEnabled,
                     onScriptStatusPersistentMinutesChanged = viewModel::updateScriptStatusPersistentMinutes,
+                    onScriptStatusInstanceMonitoringChanged = viewModel::updateScriptStatusInstanceMonitoring,
                     onAddRule = viewModel::addRule,
                     onDeleteRule = viewModel::deleteRule,
                     onExportConfig = viewModel::exportConfig,
@@ -232,6 +233,7 @@ class DashboardViewModel @Inject constructor(
             scriptStatusChangeNotificationsEnabled = draft.base.dashboard.preferences.scriptStatusChangeNotificationsEnabled,
             scriptStatusPersistentNotificationsEnabled = draft.base.dashboard.preferences.scriptStatusPersistentNotificationsEnabled,
             scriptStatusPersistentMinutes = draft.base.dashboard.preferences.scriptStatusPersistentMinutes,
+            scriptStatusIgnoredInstances = draft.base.dashboard.preferences.scriptStatusIgnoredInstances,
             rules = draft.base.dashboard.rules,
             hasAdminToken = draft.base.hasAdminToken,
             adminUsers = draft.base.users,
@@ -412,6 +414,18 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
+    fun updateScriptStatusInstanceMonitoring(sourceInstance: String, monitored: Boolean) {
+        viewModelScope.launch {
+            repository.updateScriptStatusInstanceMonitoring(sourceInstance, monitored)
+            syncRunner.refreshScriptRuntimeNotifications()
+            message.value = if (monitored) {
+                "$sourceInstance 的脚本状态提醒已开启"
+            } else {
+                "$sourceInstance 的脚本状态提醒已屏蔽"
+            }
+        }
+    }
+
     fun addRule(rule: NotificationRule) {
         viewModelScope.launch {
             val rules = repository.notificationRules.first()
@@ -545,6 +559,7 @@ data class DashboardUiState(
     val scriptStatusChangeNotificationsEnabled: Boolean = true,
     val scriptStatusPersistentNotificationsEnabled: Boolean = false,
     val scriptStatusPersistentMinutes: Int = 30,
+    val scriptStatusIgnoredInstances: Set<String> = emptySet(),
     val rules: List<NotificationRule> = emptyList(),
     val hasAdminToken: Boolean = false,
     val adminUsers: List<DashboardUser> = emptyList(),

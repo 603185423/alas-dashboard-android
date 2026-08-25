@@ -19,6 +19,7 @@ import com.alas.dashboard.android.core.model.ThresholdDirection
 import com.alas.dashboard.android.core.model.WidgetConfig
 import com.alas.dashboard.android.core.model.WidgetConfigJson
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
@@ -51,6 +52,7 @@ class SettingsStore @Inject constructor(
         val scriptStatusChangeNotificationsEnabled = booleanPreferencesKey("script_status_change_notifications_enabled")
         val scriptStatusPersistentNotificationsEnabled = booleanPreferencesKey("script_status_persistent_notifications_enabled")
         val scriptStatusPersistentMinutes = intPreferencesKey("script_status_persistent_minutes")
+        val scriptStatusIgnoredInstancesJson = stringPreferencesKey("script_status_ignored_instances_json")
         val baseUrl = stringPreferencesKey("base_url")
         val userToken = stringPreferencesKey("user_token")
         val adminToken = stringPreferencesKey("admin_token")
@@ -63,6 +65,13 @@ class SettingsStore @Inject constructor(
     val appPreferences: Flow<AppPreferences> = context.dataStore.data
         .catch { emit(emptyPreferences()) }
         .map { prefs ->
+            val accountScope = scriptStatusAccountScope(
+                baseUrl = prefs[Keys.baseUrl].orEmpty(),
+                userToken = prefs[Keys.userToken].orEmpty(),
+            )
+            val ignoredInstances = accountScope?.let { scope ->
+                decodeIgnoredInstances(prefs[Keys.scriptStatusIgnoredInstancesJson].orEmpty())[scope]
+            }.orEmpty().toSet()
             AppPreferences(
                 themeMode = prefs[Keys.themeMode] ?: ThemeMode.SYSTEM.name,
                 pollingMinutes = prefs[Keys.pollingMinutes] ?: 15,
@@ -72,6 +81,7 @@ class SettingsStore @Inject constructor(
                 scriptStatusChangeNotificationsEnabled = prefs[Keys.scriptStatusChangeNotificationsEnabled] ?: true,
                 scriptStatusPersistentNotificationsEnabled = prefs[Keys.scriptStatusPersistentNotificationsEnabled] ?: false,
                 scriptStatusPersistentMinutes = prefs[Keys.scriptStatusPersistentMinutes] ?: 30,
+                scriptStatusIgnoredInstances = ignoredInstances,
             )
         }
 
@@ -139,6 +149,29 @@ class SettingsStore @Inject constructor(
     suspend fun updateScriptStatusPersistentMinutes(minutes: Int) =
         edit { it[Keys.scriptStatusPersistentMinutes] = minutes.coerceAtLeast(1) }
 
+    suspend fun updateScriptStatusInstanceMonitoring(sourceInstance: String, monitored: Boolean) = edit { prefs ->
+        val normalizedInstance = sourceInstance.trim()
+        if (normalizedInstance.isEmpty()) return@edit
+        val accountScope = scriptStatusAccountScope(
+            baseUrl = prefs[Keys.baseUrl].orEmpty(),
+            userToken = prefs[Keys.userToken].orEmpty(),
+        ) ?: return@edit
+        val ignoredByAccount = decodeIgnoredInstances(prefs[Keys.scriptStatusIgnoredInstancesJson].orEmpty()).toMutableMap()
+        val ignoredInstances = ignoredByAccount[accountScope].orEmpty().toMutableSet()
+        if (monitored) {
+            ignoredInstances.remove(normalizedInstance)
+        } else {
+            ignoredInstances.add(normalizedInstance)
+        }
+        if (ignoredInstances.isEmpty()) {
+            ignoredByAccount.remove(accountScope)
+        } else {
+            ignoredByAccount[accountScope] = ignoredInstances.sorted()
+        }
+        prefs[Keys.scriptStatusIgnoredInstancesJson] =
+            json.encodeToString<Map<String, List<String>>>(ignoredByAccount)
+    }
+
     suspend fun updateAccount(config: AccountConfig) = edit {
         it[Keys.baseUrl] = config.baseUrl.trimEnd('/')
         it[Keys.userToken] = config.userToken.trim()
@@ -204,11 +237,20 @@ class SettingsStore @Inject constructor(
         val prefs = context.dataStore.data.first()
         return transform(prefs[key].orEmpty())
     }
+
+    private fun decodeIgnoredInstances(raw: String): Map<String, List<String>> =
+        if (raw.isBlank()) {
+            emptyMap()
+        } else {
+            runCatching { json.decodeFromString<Map<String, List<String>>>(raw) }.getOrDefault(emptyMap())
+        }
 }
 
 private class MutablePreferencesWrapper(
     private val preferences: androidx.datastore.preferences.core.MutablePreferences,
 ) {
+    operator fun get(key: Preferences.Key<String>): String? = preferences[key]
+
     operator fun set(key: Preferences.Key<String>, value: String) {
         preferences[key] = value
     }
@@ -219,6 +261,22 @@ private class MutablePreferencesWrapper(
 
     operator fun set(key: Preferences.Key<Boolean>, value: Boolean) {
         preferences[key] = value
+    }
+}
+
+internal fun scriptStatusAccountScope(baseUrl: String, userToken: String): String? {
+    val normalizedBaseUrl = baseUrl.trim().trimEnd('/')
+    val normalizedToken = userToken.trim()
+    if (normalizedBaseUrl.isEmpty() || normalizedToken.isEmpty()) return null
+    val digest = MessageDigest.getInstance("SHA-256")
+        .digest("$normalizedBaseUrl\n$normalizedToken".toByteArray(Charsets.UTF_8))
+    val hex = "0123456789abcdef"
+    return buildString(digest.size * 2) {
+        digest.forEach { byte ->
+            val value = byte.toInt() and 0xff
+            append(hex[value ushr 4])
+            append(hex[value and 0x0f])
+        }
     }
 }
 
